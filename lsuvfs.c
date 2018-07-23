@@ -51,32 +51,52 @@ void unpack_datetime(unsigned char *time, short *year, short *month, short *day,
   *second = (unsigned short)(time[6]);
 }
 
-void rotate(superblock_entry_t *sb) {
-  sb->block_size = htons(sb->block_size);
-  sb->num_blocks = htonl(sb->num_blocks);
+void rotate_sb(superblock_entry_t *sb) {
+  sb->dir_start = htonl(sb->dir_start);
   sb->fat_start = htonl(sb->fat_start);
   sb->fat_blocks = htonl(sb->fat_blocks);
-  sb->dir_start = htonl(sb->dir_start);
+  sb->num_blocks = htonl(sb->num_blocks);
   sb->dir_blocks = htonl(sb->dir_blocks);
+  sb->block_size = htons(sb->block_size);
 }
 
-void display_files(char *imagename) {
+void rotate_dir(directory_entry_t *dir) {
+  dir->file_size = htonl(dir->file_size);
+  dir->num_blocks = htonl(dir->num_blocks);
+  dir->start_block = htonl(dir->start_block);
+}
+
+void display_files(char *file_name) {
   superblock_entry_t sb;
+  directory_entry_t dir;
+  short year, month, day, hour, min, sec;
   FILE *fp = fopen(file_name, "rb");
   if (fp == NULL) {
-    printf("File not found!\n");
+    printf("Image not found!\n");
     exit(1);
   }
   fread(&sb, sizeof(superblock_entry_t), 1, fp);
-  rotate(&sb);
-  fseek(f, sb.dir_start * sb.block_size, SEEK_SET);
+  rotate_sb(&sb);
+  // divide by 64 becuase each directory entry is 64 bytes
+  int length = sb.dir_blocks * (sb.block_size / 64);
+  fseek(fp, sb.block_size * sb.dir_start, SEEK_SET);
+  int i;
+  for (i = 0; i < length; i++) {
+    fread(&dir, sizeof(directory_entry_t), 1, fp);
+    rotate_dir(&dir);
+    if (dir.status == DIR_ENTRY_NORMALFILE ||
+        dir.status == DIR_ENTRY_DIRECTORY) {
+      unpack_datetime(dir.create_time, &year, &month, &day, &hour, &min, &sec);
+      printf("%8d %d-%s-%d %02d:%02d:%02d %s\n", dir.file_size, year,
+             month_to_string(month), day, hour, min, sec, dir.filename);
+    }
+  }
+  fclose(fp);
 }
 
 int main(int argc, char *argv[]) {
-  superblock_entry_t sb;
   int i;
   char *imagename = NULL;
-  FILE *f;
 
   for (i = 1; i < argc; i++) {
     if (strcmp(argv[i], "--image") == 0 && i + 1 < argc) {

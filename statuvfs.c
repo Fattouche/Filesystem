@@ -18,19 +18,19 @@ unsigned long LAST_BLOCK = -1;
 int FAT_ENTRY_SIZE = 4;
 
 void rotate(superblock_entry_t *sb) {
-  sb->block_size = htons(sb->block_size);
-  sb->num_blocks = htonl(sb->num_blocks);
+  sb->dir_start = htonl(sb->dir_start);
   sb->fat_start = htonl(sb->fat_start);
   sb->fat_blocks = htonl(sb->fat_blocks);
-  sb->dir_start = htonl(sb->dir_start);
+  sb->num_blocks = htonl(sb->num_blocks);
   sb->dir_blocks = htonl(sb->dir_blocks);
+  sb->block_size = htons(sb->block_size);
 }
 
 void display_stat(char *file_name) {
   superblock_entry_t sb;
   FILE *fp = fopen(file_name, "rb");
   if (fp == NULL) {
-    printf("File not found!\n");
+    printf("Image not found!\n");
     exit(1);
   }
   fread(&sb, sizeof(superblock_entry_t), 1, fp);
