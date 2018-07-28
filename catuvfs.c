@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include "disk.h"
-#define FAT_ENTRY_LENGTH 4
 
 void rotate_sb(superblock_entry_t *sb) {
   sb->dir_start = htonl(sb->dir_start);
@@ -42,18 +41,26 @@ void set_directory_entry(FILE *fp, char *filename, directory_entry_t *dir,
 }
 
 void traverse_fat(FILE *fp, superblock_entry_t sb, unsigned int start) {
-  char buffer[sb.block_size];
   unsigned int curr = start;
-  int counter = 1;
-  while (curr != FAT_LASTBLOCK && counter < 50) {
-    fseek(fp, curr * sb.block_size, SEEK_SET);
-    fread(&buffer, sb.block_size, 1, fp);
-    printf("%s", buffer);
-    fseek(fp, (sb.fat_start * sb.block_size) + (counter * FAT_ENTRY_LENGTH),
-          SEEK_SET);
-    fread(&curr, FAT_ENTRY_LENGTH, 1, fp);
-    counter++;
+  unsigned int fat_memory_start = sb.fat_start * sb.block_size;
+  char *buffer = (char *)malloc((sb.block_size + 1) * sizeof(char));
+  if (!buffer) {
+    fprintf(stderr, "Memory error!");
+    fclose(fp);
+    return;
   }
+  while (curr != FAT_LASTBLOCK) {
+    fseek(fp, curr * sb.block_size, SEEK_SET);
+    fread(buffer, sb.block_size, 1, fp);
+    printf("%s", buffer);
+
+    fseek(fp, fat_memory_start + SIZE_FAT_ENTRY * curr, SEEK_SET);
+    fread(&curr, SIZE_FAT_ENTRY, 1, fp);
+    curr = htonl(curr);
+  }
+  printf("START: %u\n", start);
+
+  free(buffer);
 }
 
 void display_cat(char *imagename, char *filename) {
