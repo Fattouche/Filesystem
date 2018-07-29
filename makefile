@@ -38,4 +38,4 @@ downloaduvfs.o: downloaduvfs.c disk.h
 	$(CC) $(CFLAGS) downloaduvfs.c
 
 clean:
-	rm -rf *.o statuvfs lsuvfs catuvfs storuvfs
+	rm -rf *.o statuvfs lsuvfs catuvfs storuvfs downloaduvfs
