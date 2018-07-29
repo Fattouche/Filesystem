@@ -32,7 +32,6 @@ void display_stat(char *file_name) {
   fread(&sb, sizeof(superblock_entry_t), 1, fp);
   rotate(&sb);
 
-  // print file-system identifier (8 bytes)
   printf("%s (%s)\n\n", sb.magic, file_name);
   printf("-------------------------------------------------\n\n");
 

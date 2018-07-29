@@ -34,6 +34,7 @@ void pack_current_datetime(unsigned char *entry) {
   entry[6] = second;
 }
 
+// Find how many free blocks are left so that we don't go over the memory
 int get_free_block_count(FILE *fp, superblock_entry_t sb) {
   int fat_entry;
   fseek(fp, sb.fat_start * sb.block_size, SEEK_SET);
@@ -49,6 +50,7 @@ int get_free_block_count(FILE *fp, superblock_entry_t sb) {
   return counter;
 }
 
+// Find the next available block in the fat
 unsigned int next_free_block(FILE *fp, superblock_entry_t sb, int reserve) {
   unsigned int addr = 1;
   fseek(fp, sb.fat_start * sb.block_size, SEEK_SET);
@@ -84,6 +86,7 @@ void rotate_dir(directory_entry_t *dir) {
   dir->start_block = htonl(dir->start_block);
 }
 
+// Initialize the directory entry and write to the file system
 void initialize_directory_entry(FILE *image_fp, directory_entry_t *dir,
                                 superblock_entry_t *sb, char *filename,
                                 char *sourcename) {
@@ -172,6 +175,8 @@ int check_directory_entry(FILE *fp, char *filename, superblock_entry_t sb) {
   return 0;
 }
 
+// Once we have written data, we need to add the directory entry struct to the
+// file system
 void store_directory_entry(FILE *fp, directory_entry_t dir,
                            superblock_entry_t sb) {
   if (sb.dir_blocks >= MAX_DIR_ENTRIES) {

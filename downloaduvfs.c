@@ -23,6 +23,7 @@ void rotate_dir(directory_entry_t *dir) {
   dir->start_block = htonl(dir->start_block);
 }
 
+// Iterate through the FAT and write files to respective save locations
 void traverse_fat(FILE *fp, superblock_entry_t sb, directory_entry_t dir,
                   char *save_location) {
   unsigned int curr = dir.start_block;
@@ -54,6 +55,7 @@ void traverse_fat(FILE *fp, superblock_entry_t sb, directory_entry_t dir,
   free(buffer);
 }
 
+// Downloads all the files of an image into the specified directory
 void download_image(char *imagename, char *directory) {
   superblock_entry_t sb;
   directory_entry_t dir;

@@ -66,6 +66,7 @@ void rotate_dir(directory_entry_t *dir) {
   dir->start_block = htonl(dir->start_block);
 }
 
+// Shows the files that exist within the file system
 void display_files(char *file_name) {
   superblock_entry_t sb;
   directory_entry_t dir;

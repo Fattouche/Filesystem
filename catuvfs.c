@@ -21,6 +21,7 @@ void rotate_dir(directory_entry_t *dir) {
   dir->start_block = htonl(dir->start_block);
 }
 
+// Find directory entry within the file system
 void set_directory_entry(FILE *fp, char *filename, directory_entry_t *dir,
                          superblock_entry_t sb) {
   fseek(fp, sb.dir_start * sb.block_size, SEEK_SET);
@@ -39,6 +40,7 @@ void set_directory_entry(FILE *fp, char *filename, directory_entry_t *dir,
   }
 }
 
+// Iterate through the FAT and find where the data is stored
 void traverse_fat(FILE *fp, superblock_entry_t sb, unsigned int start,
                   unsigned int file_size) {
   unsigned int curr = start;
