@@ -5,7 +5,7 @@
 CC=gcc
 CFLAGS=-c -Wall -g -DDEBUG
 
-all: statuvfs lsuvfs catuvfs storuvfs
+all: statuvfs lsuvfs catuvfs storuvfs downloaduvfs
 
 statuvfs: statuvfs.o
 	$(CC) statuvfs.o -o statuvfs
@@ -30,6 +30,12 @@ storuvfs: storuvfs.o
 
 storuvfs.o: storuvfs.c disk.h
 	$(CC) $(CFLAGS) storuvfs.c
+
+downloaduvfs: downloaduvfs.o
+	$(CC) downloaduvfs.o -o downloaduvfs
+
+downloaduvfs.o: downloaduvfs.c disk.h
+	$(CC) $(CFLAGS) downloaduvfs.c
 
 clean:
 	rm -rf *.o statuvfs lsuvfs catuvfs storuvfs
