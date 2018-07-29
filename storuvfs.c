@@ -34,21 +34,7 @@ void pack_current_datetime(unsigned char *entry) {
   entry[6] = second;
 }
 
-/*int next_free_block(int *FAT, int max_blocks) {
-  assert(FAT != NULL);
-
-  int i;
-  for (i = 0; i < max_blocks; i++) {
-    if (FAT[i] == FAT_AVAILABLE) {
-      printf("FOUND ENTRY: %d\n", i);
-      return i;
-    }
-  }
-
-  return -1;
-}*/
-
-unsigned int next_free_block(FILE *fp, superblock_entry_t sb) {
+unsigned int next_free_block(FILE *fp, superblock_entry_t sb, int reserve) {
   unsigned int addr = 1;
   fseek(fp, sb.fat_start * sb.block_size, SEEK_SET);
   unsigned int counter = 0;
@@ -56,6 +42,14 @@ unsigned int next_free_block(FILE *fp, superblock_entry_t sb) {
     fread(&addr, SIZE_FAT_ENTRY, 1, fp);
     addr = htonl(addr);
     counter++;
+  }
+  counter--;
+  if (reserve) {
+    unsigned int mem_placeholder = FAT_RESERVED;
+    // Write to the free block to reserve it
+    fseek(fp, (counter * SIZE_FAT_ENTRY) + sb.block_size * sb.fat_start,
+          SEEK_SET);
+    fwrite(&mem_placeholder, SIZE_FAT_ENTRY, 1, fp);
   }
   return counter;
 }
@@ -75,21 +69,21 @@ void rotate_dir(directory_entry_t *dir) {
   dir->start_block = htonl(dir->start_block);
 }
 
-void initialize_directory_entry(FILE *image_write_fp, FILE *image_fp,
-                                directory_entry_t *dir, superblock_entry_t *sb,
-                                char *filename, char *sourcename) {
+void initialize_directory_entry(FILE *image_fp, directory_entry_t *dir,
+                                superblock_entry_t *sb, char *filename,
+                                char *sourcename) {
   FILE *source_fp = fopen(sourcename, "rb");
+  if (source_fp == NULL) {
+    printf("Sourcefile not found!\n");
+    return;
+  }
   fseek(source_fp, 0L, SEEK_END);
   dir->file_size = ftell(source_fp);
   rewind(source_fp);
   dir->status = DIR_ENTRY_NORMALFILE;
-  dir->start_block = next_free_block(image_fp, *sb);
+  dir->start_block = next_free_block(image_fp, *sb, 1);
 
-  // printf("file_size: %u\n", dir->file_size);
-  printf("start_block: %u\n", dir->start_block);
-  // printf("block size: %u\n", sb->block_size);
-
-  strncpy(dir->filename, sourcename, DIR_FILENAME_MAX - 1);
+  strncpy(dir->filename, filename, DIR_FILENAME_MAX - 1);
 
   unsigned char *temp_time =
       (unsigned char *)malloc((DIR_TIME_WIDTH + 1) * sizeof(char));
@@ -101,23 +95,32 @@ void initialize_directory_entry(FILE *image_write_fp, FILE *image_fp,
   unsigned int bytes_written = 0;
   unsigned int curr = dir->start_block;
   unsigned int num_block_counter = 0;
+  unsigned int temp_addr;
   char *buffer = (char *)malloc((sb->block_size + 1) * sizeof(char));
   int counter = 0;
   while (bytes_written < dir->file_size && counter < 100) {
     fread(buffer, sb->block_size, 1, source_fp);
     fseek(image_fp, curr * sb->block_size, SEEK_SET);
-    printf("SEEKING: %u\n", curr * sb->block_size);
-    bytes_written +=
-        sb->block_size *
-        (unsigned short)fwrite(buffer, sizeof(buffer), 1, image_write_fp);
-    printf("BYTES_WRITTEN: %u\n", bytes_written);
-    fseek(image_write_fp, curr, SEEK_SET);
-    curr = next_free_block(image_fp, *sb);
-    fwrite(&curr, SIZE_FAT_ENTRY, 1, image_write_fp);
+    bytes_written += sb->block_size * (unsigned short)fwrite(
+                                          buffer, sizeof(buffer), 1, image_fp);
+    temp_addr = next_free_block(image_fp, *sb, 1);
+    temp_addr = htonl(temp_addr);
+    fseek(image_fp, (curr * SIZE_FAT_ENTRY) + (sb->fat_start * sb->block_size),
+          SEEK_SET);
+    curr = temp_addr;
+    fwrite(&curr, SIZE_FAT_ENTRY, 1, image_fp);
+    curr = htonl(curr);
     counter++;
     num_block_counter++;
   }
+  fseek(image_fp, (curr * SIZE_FAT_ENTRY) + (sb->fat_start * sb->block_size),
+        SEEK_SET);
+  curr = FAT_LASTBLOCK;
+  fwrite(&curr, SIZE_FAT_ENTRY, 1, image_fp);
+
   dir->num_blocks = num_block_counter;
+  unsigned char temporal[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+  memcpy(dir->_padding, temporal, 6);
   free(buffer);
   free(temp_time);
 }
@@ -143,27 +146,28 @@ void store_directory_entry(FILE *fp, directory_entry_t dir,
     printf("Too many directory entries, not enough space!\n");
     return;
   }
-  unsigned int length =
-      (sb.dir_start * sb.block_size) + (sb.dir_blocks * sb.block_size);
-  fseek(fp, length, SEEK_SET);
+  unsigned int dir_start_address = sb.dir_start * sb.block_size;
+  fseek(fp, dir_start_address, SEEK_SET);
+  int i = 0;
+  while (i < SIZE_DIR_ENTRY && dir.file_size) {
+    fread(&dir, sizeof(directory_entry_t), 1, fp);
+    rotate_dir(&dir);
+    i++;
+  }
+
+  fseek(fp, i * SIZE_DIR_ENTRY, SEEK_SET);
+  rotate_dir(&dir);
   fwrite(&dir, sizeof(directory_entry_t), 1, fp);
-  sb.dir_blocks++;
-  sb.num_blocks++;
-  fseek(fp, 0, SEEK_SET);
-  fwrite(&sb, sizeof(superblock_entry_t), 1, fp);
 }
 
 void store_file(char *imagename, char *filename, char *sourcename) {
   superblock_entry_t sb;
   directory_entry_t dir;
-  FILE *fp = fopen(imagename, "rb");
+  FILE *fp = fopen(imagename, "r+b");
   if (fp == NULL) {
-    printf("%s\n", imagename);
     printf("Image not found!\n");
     return;
   }
-
-  FILE *write_fp = fopen(imagename, "wb");
 
   fread(&sb, sizeof(superblock_entry_t), 1, fp);
   rotate_sb(&sb);
@@ -171,11 +175,10 @@ void store_file(char *imagename, char *filename, char *sourcename) {
     printf("file already exists in the image\n");
     return;
   }
-  initialize_directory_entry(write_fp, fp, &dir, &sb, filename, sourcename);
-  store_directory_entry(write_fp, dir, sb);
+  initialize_directory_entry(fp, &dir, &sb, filename, sourcename);
+  store_directory_entry(fp, dir, sb);
 
   fclose(fp);
-  fclose(write_fp);
 }
 
 int main(int argc, char *argv[]) {

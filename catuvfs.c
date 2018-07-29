@@ -24,9 +24,8 @@ void rotate_dir(directory_entry_t *dir) {
 void set_directory_entry(FILE *fp, char *filename, directory_entry_t *dir,
                          superblock_entry_t sb) {
   fseek(fp, sb.dir_start * sb.block_size, SEEK_SET);
-  int length = sb.dir_blocks * (sb.block_size / 64);
   int i;
-  for (i = 0; i < length; i++) {
+  for (i = 0; i < SIZE_DIR_ENTRY; i++) {
     fread(dir, sizeof(directory_entry_t), 1, fp);
     rotate_dir(dir);
     if (strcmp(dir->filename, filename) == 0) {
@@ -58,7 +57,6 @@ void traverse_fat(FILE *fp, superblock_entry_t sb, unsigned int start) {
     fread(&curr, SIZE_FAT_ENTRY, 1, fp);
     curr = htonl(curr);
   }
-  printf("START: %u\n", start);
 
   free(buffer);
 }
