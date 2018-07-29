@@ -77,11 +77,9 @@ void display_files(char *file_name) {
   }
   fread(&sb, sizeof(superblock_entry_t), 1, fp);
   rotate_sb(&sb);
-  // divide by 64 becuase each directory entry is 64 bytes
-  int length = sb.dir_blocks * (sb.block_size / 64);
   fseek(fp, sb.block_size * sb.dir_start, SEEK_SET);
   int i;
-  for (i = 0; i < length; i++) {
+  for (i = 0; i < SIZE_DIR_ENTRY; i++) {
     fread(&dir, sizeof(directory_entry_t), 1, fp);
     rotate_dir(&dir);
     if (dir.status == DIR_ENTRY_NORMALFILE ||

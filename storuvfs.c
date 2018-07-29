@@ -92,18 +92,16 @@ void initialize_directory_entry(FILE *image_fp, directory_entry_t *dir,
   memcpy(dir->create_time, temp_time, DIR_TIME_WIDTH);
   memcpy(dir->modify_time, temp_time, DIR_TIME_WIDTH);
 
-  unsigned int bytes_written = 0;
+  unsigned int bytes_read = 0;
   unsigned int curr = dir->start_block;
   unsigned int num_block_counter = 0;
   unsigned int temp_addr;
   char *buffer = (char *)malloc((sb->block_size + 1) * sizeof(char));
-  while (bytes_written < dir->file_size) {
-    fread(buffer, sb->block_size, 1, source_fp);
+  while (bytes_read + sb->block_size < dir->file_size) {
+    bytes_read += sb->block_size *
+                  (unsigned short)fread(buffer, sb->block_size, 1, source_fp);
     fseek(image_fp, curr * sb->block_size, SEEK_SET);
-    bytes_written +=
-        sb->block_size *
-        (unsigned short)fwrite(buffer, (sb->block_size + 1) * sizeof(char), 1,
-                               image_fp);
+    fwrite(buffer, (sb->block_size + 1) * sizeof(char), 1, image_fp);
     temp_addr = next_free_block(image_fp, *sb, 1);
     temp_addr = htonl(temp_addr);
     fseek(image_fp, (curr * SIZE_FAT_ENTRY) + (sb->fat_start * sb->block_size),
@@ -113,6 +111,18 @@ void initialize_directory_entry(FILE *image_fp, directory_entry_t *dir,
     curr = htonl(curr);
     num_block_counter++;
   }
+  fread(buffer, dir->file_size - bytes_read, 1, source_fp);
+  fseek(image_fp, curr * sb->block_size, SEEK_SET);
+  fwrite(buffer, dir->file_size - bytes_read, 1, image_fp);
+  temp_addr = next_free_block(image_fp, *sb, 1);
+  temp_addr = htonl(temp_addr);
+  fseek(image_fp, (curr * SIZE_FAT_ENTRY) + (sb->fat_start * sb->block_size),
+        SEEK_SET);
+  curr = temp_addr;
+  fwrite(&curr, SIZE_FAT_ENTRY, 1, image_fp);
+  curr = htonl(curr);
+  num_block_counter++;
+
   fseek(image_fp, (curr * SIZE_FAT_ENTRY) + (sb->fat_start * sb->block_size),
         SEEK_SET);
   curr = FAT_LASTBLOCK;
