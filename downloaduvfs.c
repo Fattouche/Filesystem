@@ -78,7 +78,6 @@ void download_image(char *imagename, char *directory) {
     fseek(fp, directory_start + i * SIZE_DIR_ENTRY, SEEK_SET);
     fread(&dir, SIZE_DIR_ENTRY, 1, fp);
     rotate_dir(&dir);
-    ;
     if (dir.file_size == 0) {
       continue;
     }

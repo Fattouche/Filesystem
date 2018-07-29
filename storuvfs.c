@@ -95,9 +95,14 @@ void initialize_directory_entry(FILE *image_fp, directory_entry_t *dir,
     printf("Sourcefile not found!\n");
     return;
   }
+  int free_block_count = get_free_block_count(image_fp, *sb);
   fseek(source_fp, 0L, SEEK_END);
   dir->file_size = ftell(source_fp);
   if (dir->file_size) rewind(source_fp);
+  if (dir->file_size > free_block_count * sb->block_size) {
+    printf("File to large for system!\n");
+    exit(0);
+  }
   dir->status = DIR_ENTRY_NORMALFILE;
   dir->start_block = next_free_block(image_fp, *sb, 1);
 
@@ -109,8 +114,6 @@ void initialize_directory_entry(FILE *image_fp, directory_entry_t *dir,
 
   memcpy(dir->create_time, temp_time, DIR_TIME_WIDTH);
   memcpy(dir->modify_time, temp_time, DIR_TIME_WIDTH);
-
-  int free_block_count = get_free_block_count(image_fp, *sb);
 
   unsigned int bytes_read = 0;
   unsigned int curr = dir->start_block;
@@ -133,7 +136,7 @@ void initialize_directory_entry(FILE *image_fp, directory_entry_t *dir,
     // num_block_counter*2 because data and fat blocks
     if (num_block_counter * 2 >= free_block_count) {
       printf("Too many blocks in file system!\n");
-      return;
+      exit(0);
     }
   }
   fread(buffer, dir->file_size - bytes_read, 1, source_fp);
