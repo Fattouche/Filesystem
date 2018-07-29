@@ -39,24 +39,31 @@ void set_directory_entry(FILE *fp, char *filename, directory_entry_t *dir,
   }
 }
 
-void traverse_fat(FILE *fp, superblock_entry_t sb, unsigned int start) {
+void traverse_fat(FILE *fp, superblock_entry_t sb, unsigned int start,
+                  unsigned int file_size) {
   unsigned int curr = start;
   unsigned int fat_memory_start = sb.fat_start * sb.block_size;
-  char *buffer = (char *)malloc((sb.block_size + 1) * sizeof(char));
+  unsigned char *buffer =
+      (unsigned char *)malloc((sb.block_size + 1) * sizeof(unsigned char));
   if (!buffer) {
     fprintf(stderr, "Memory error!");
     fclose(fp);
     return;
   }
-  while (curr != FAT_LASTBLOCK) {
+  unsigned int bytes_read = 0;
+  while (curr != FAT_LASTBLOCK && bytes_read + sb.block_size < file_size) {
     fseek(fp, curr * sb.block_size, SEEK_SET);
-    fread(buffer, sb.block_size, 1, fp);
-    printf("%s", buffer);
+    bytes_read +=
+        sb.block_size * (unsigned int)fread(buffer, sb.block_size, 1, fp);
+    fwrite(buffer, sb.block_size, 1, stdout);
 
     fseek(fp, fat_memory_start + SIZE_FAT_ENTRY * curr, SEEK_SET);
     fread(&curr, SIZE_FAT_ENTRY, 1, fp);
     curr = htonl(curr);
   }
+  fseek(fp, curr * sb.block_size, SEEK_SET);
+  fread(buffer, file_size - bytes_read, 1, fp);
+  fwrite(buffer, file_size - bytes_read, 1, stdout);
 
   free(buffer);
 }
@@ -72,7 +79,7 @@ void display_cat(char *imagename, char *filename) {
   fread(&sb, sizeof(superblock_entry_t), 1, fp);
   rotate_sb(&sb);
   set_directory_entry(fp, filename, &dir, sb);
-  traverse_fat(fp, sb, dir.start_block);
+  traverse_fat(fp, sb, dir.start_block, dir.file_size);
   fclose(fp);
 }
 

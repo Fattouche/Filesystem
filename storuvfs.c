@@ -97,12 +97,13 @@ void initialize_directory_entry(FILE *image_fp, directory_entry_t *dir,
   unsigned int num_block_counter = 0;
   unsigned int temp_addr;
   char *buffer = (char *)malloc((sb->block_size + 1) * sizeof(char));
-  int counter = 0;
-  while (bytes_written < dir->file_size && counter < 100) {
+  while (bytes_written < dir->file_size) {
     fread(buffer, sb->block_size, 1, source_fp);
     fseek(image_fp, curr * sb->block_size, SEEK_SET);
-    bytes_written += sb->block_size * (unsigned short)fwrite(
-                                          buffer, sizeof(buffer), 1, image_fp);
+    bytes_written +=
+        sb->block_size *
+        (unsigned short)fwrite(buffer, (sb->block_size + 1) * sizeof(char), 1,
+                               image_fp);
     temp_addr = next_free_block(image_fp, *sb, 1);
     temp_addr = htonl(temp_addr);
     fseek(image_fp, (curr * SIZE_FAT_ENTRY) + (sb->fat_start * sb->block_size),
@@ -110,7 +111,6 @@ void initialize_directory_entry(FILE *image_fp, directory_entry_t *dir,
     curr = temp_addr;
     fwrite(&curr, SIZE_FAT_ENTRY, 1, image_fp);
     curr = htonl(curr);
-    counter++;
     num_block_counter++;
   }
   fseek(image_fp, (curr * SIZE_FAT_ENTRY) + (sb->fat_start * sb->block_size),
@@ -149,13 +149,17 @@ void store_directory_entry(FILE *fp, directory_entry_t dir,
   unsigned int dir_start_address = sb.dir_start * sb.block_size;
   fseek(fp, dir_start_address, SEEK_SET);
   int i = 0;
-  while (i < SIZE_DIR_ENTRY && dir.file_size) {
-    fread(&dir, sizeof(directory_entry_t), 1, fp);
-    rotate_dir(&dir);
+  directory_entry_t temp;
+  while (i < SIZE_DIR_ENTRY) {
+    fread(&temp, sizeof(directory_entry_t), 1, fp);
+    rotate_dir(&temp);
+    if (!temp.file_size) {
+      break;
+    }
     i++;
   }
 
-  fseek(fp, i * SIZE_DIR_ENTRY, SEEK_SET);
+  fseek(fp, (i * SIZE_DIR_ENTRY) + dir_start_address, SEEK_SET);
   rotate_dir(&dir);
   fwrite(&dir, sizeof(directory_entry_t), 1, fp);
 }
@@ -171,7 +175,7 @@ void store_file(char *imagename, char *filename, char *sourcename) {
 
   fread(&sb, sizeof(superblock_entry_t), 1, fp);
   rotate_sb(&sb);
-  if (check_directory_entry(fp, sourcename, sb)) {
+  if (check_directory_entry(fp, filename, sb)) {
     printf("file already exists in the image\n");
     return;
   }
