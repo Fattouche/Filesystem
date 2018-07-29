@@ -25,7 +25,7 @@ void set_directory_entry(FILE *fp, char *filename, directory_entry_t *dir,
                          superblock_entry_t sb) {
   fseek(fp, sb.dir_start * sb.block_size, SEEK_SET);
   int i;
-  for (i = 0; i < SIZE_DIR_ENTRY; i++) {
+  for (i = 0; i < MAX_DIR_ENTRIES; i++) {
     fread(dir, sizeof(directory_entry_t), 1, fp);
     rotate_dir(dir);
     if (strcmp(dir->filename, filename) == 0) {

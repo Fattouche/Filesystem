@@ -11,11 +11,7 @@ typedef struct fat_attribute_t {
   int allocated_bytes;
 } fat_attribute_t;
 
-int FREE = 0;
-int RESERVED = 1;
 unsigned long ALLOCATED = 0xffffff00;
-unsigned long LAST_BLOCK = -1;
-int FAT_ENTRY_SIZE = 4;
 
 void rotate(superblock_entry_t *sb) {
   sb->dir_start = htonl(sb->dir_start);
@@ -52,14 +48,14 @@ void display_stat(char *file_name) {
   fseek(fp, sb.fat_start * sb.block_size, SEEK_SET);
   int i;
   for (i = 0; i < sb.num_blocks; i++) {
-    fread(&fat_entry, FAT_ENTRY_SIZE, 1, fp);
+    fread(&fat_entry, SIZE_FAT_ENTRY, 1, fp);
     fat_entry = htonl(fat_entry);
-    if (fat_entry == FREE) {
+    if (fat_entry == FAT_AVAILABLE) {
       fat_attr.free_bytes++;
-    } else if (fat_entry == RESERVED) {
+    } else if (fat_entry == FAT_RESERVED) {
       fat_attr.reserved_bytes++;
-    } else if ((fat_entry > RESERVED && fat_entry <= ALLOCATED) ||
-               fat_entry == LAST_BLOCK) {
+    } else if ((fat_entry > FAT_RESERVED && fat_entry <= ALLOCATED) ||
+               fat_entry == FAT_LASTBLOCK) {
       fat_attr.allocated_bytes++;
     }
   }

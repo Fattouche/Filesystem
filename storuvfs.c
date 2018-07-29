@@ -34,11 +34,26 @@ void pack_current_datetime(unsigned char *entry) {
   entry[6] = second;
 }
 
+int get_free_block_count(FILE *fp, superblock_entry_t sb) {
+  int fat_entry;
+  fseek(fp, sb.fat_start * sb.block_size, SEEK_SET);
+  int i;
+  int counter = 0;
+  for (i = 0; i < sb.num_blocks; i++) {
+    fread(&fat_entry, SIZE_FAT_ENTRY, 1, fp);
+    fat_entry = htonl(fat_entry);
+    if (fat_entry == FAT_AVAILABLE) {
+      counter++;
+    }
+  }
+  return counter;
+}
+
 unsigned int next_free_block(FILE *fp, superblock_entry_t sb, int reserve) {
   unsigned int addr = 1;
   fseek(fp, sb.fat_start * sb.block_size, SEEK_SET);
   unsigned int counter = 0;
-  while (addr != 0 && counter < 500) {
+  while (addr != 0) {
     fread(&addr, SIZE_FAT_ENTRY, 1, fp);
     addr = htonl(addr);
     counter++;
@@ -79,7 +94,7 @@ void initialize_directory_entry(FILE *image_fp, directory_entry_t *dir,
   }
   fseek(source_fp, 0L, SEEK_END);
   dir->file_size = ftell(source_fp);
-  rewind(source_fp);
+  if (dir->file_size) rewind(source_fp);
   dir->status = DIR_ENTRY_NORMALFILE;
   dir->start_block = next_free_block(image_fp, *sb, 1);
 
@@ -91,6 +106,8 @@ void initialize_directory_entry(FILE *image_fp, directory_entry_t *dir,
 
   memcpy(dir->create_time, temp_time, DIR_TIME_WIDTH);
   memcpy(dir->modify_time, temp_time, DIR_TIME_WIDTH);
+
+  int free_block_count = get_free_block_count(image_fp, *sb);
 
   unsigned int bytes_read = 0;
   unsigned int curr = dir->start_block;
@@ -110,6 +127,11 @@ void initialize_directory_entry(FILE *image_fp, directory_entry_t *dir,
     fwrite(&curr, SIZE_FAT_ENTRY, 1, image_fp);
     curr = htonl(curr);
     num_block_counter++;
+    // num_block_counter*2 because data and fat blocks
+    if (num_block_counter * 2 >= free_block_count) {
+      printf("Too many blocks in file system!\n");
+      return;
+    }
   }
   fread(buffer, dir->file_size - bytes_read, 1, source_fp);
   fseek(image_fp, curr * sb->block_size, SEEK_SET);
@@ -159,14 +181,20 @@ void store_directory_entry(FILE *fp, directory_entry_t dir,
   unsigned int dir_start_address = sb.dir_start * sb.block_size;
   fseek(fp, dir_start_address, SEEK_SET);
   int i = 0;
+  int found = 0;
   directory_entry_t temp;
   while (i < SIZE_DIR_ENTRY) {
     fread(&temp, sizeof(directory_entry_t), 1, fp);
     rotate_dir(&temp);
     if (!temp.file_size) {
+      found = 1;
       break;
     }
     i++;
+  }
+  if (!found) {
+    printf("Too many directory entries!");
+    return;
   }
 
   fseek(fp, (i * SIZE_DIR_ENTRY) + dir_start_address, SEEK_SET);
